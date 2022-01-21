@@ -9,6 +9,7 @@ module Tinia
         # lambda block for the scope
         scope_def = lambda{|*ids|
           where("#{self.table_name}.#{self.primary_key} IN (?)", ids.flatten)
+          .order("field(#{self.primary_key},'#{ids.flatten.join("','")}')")
         }
         scope :tinia_scope, scope_def do 
           include WillPaginateMethods
@@ -49,7 +50,7 @@ module Tinia
       # return a scope with the subset of ids
       def cloud_search(*args)
         opts = {:page => 1, :per_page => 20}
-        opts = opts.merge(args.extract_options!)
+        opts = opts.merge(args.extract_options!.inject({}){|memo,(k,v)| memo[k.to_sym] = v; memo})
         opts[:page] ||= 1
         query = args.first
         
@@ -83,6 +84,12 @@ module Tinia
           else
             req.bq = "(and '#{query}' type:'#{self.base_class.name}')" 
           end
+
+          opts.each do |k,v|
+            next if k.to_sym == :per_page || k.to_sym == :page
+            req.send(k.to_s + "=",v)
+          end
+
           req.size = opts[:per_page].to_i
           req.start = (opts[:page].to_i - 1) * opts[:per_page].to_i
         end
